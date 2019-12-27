@@ -1,0 +1,12 @@
+{% extends "dashboard/base.html" %}
+
+{% block content %}
+    {% load plotly_dash %}
+
+    <h1>H1B Salary Data</h1>
+    <div class="{% plotly_class name='h1b_salary' %} card" style="height: 100%; width: 175%">
+        {% plotly_app name='h1b_salary' ratio=.75 %}
+
+    </div>
+
+{% endblock content %}
