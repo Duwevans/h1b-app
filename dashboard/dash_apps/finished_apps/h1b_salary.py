@@ -8,9 +8,50 @@ from django_plotly_dash import DjangoDash
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
-df = pd.read_csv('C:\\Users\\DuEvans\\Documents\\h1b_data.csv')
-df = df.loc[df['base salary'] < 350000]
-df['job_title'] = df['job_title'].astype(str)
+
+# format the starting dataset
+def get_dataset():
+    """"""
+    url = 'https://media.githubusercontent.com/media/Duwevans/h1b-app/master/data/h1b_disclosure_data.csv'
+
+    df = pd.read_csv(url, low_memory=False)
+
+    # standardize pay field
+    df['base_salary'] = df['WAGE_RATE_OF_PAY_FROM'].str.replace(
+        '$', '',
+    ).str.replace(',', '').astype(float)
+
+    # convert pay field to annual
+    df['annualized_conversion'] = df['WAGE_UNIT_OF_PAY'].map(
+        {
+            'Year': 1,
+            'Hour': 2080,
+            'Month': 12,
+            'Week': 52,
+            'Bi-Weekly': 26,
+        }
+    )
+
+    df['annual_pay'] = df['base_salary'] * df['annualized_conversion']
+
+    # isolate to only technology jobs
+    # separate SOC CODE into two groups - first two digits are the major group
+    df[['soc_major_group', 'soc_minor_group']] = df['SOC_CODE'].str.split(
+        pat='-', expand=True
+    )
+
+    # SOC_CODE starts with "15-" - these are "Computer and Mathematical Occupations"
+    df_tech = df.loc[df['soc_major_group'] == '15']
+
+    return df, df_tech
+
+df_all, df_tech = get_dataset()
+
+# todo: create usable dataset
+
+
+df = df_tech.copy()
+df['JOB_TITLE'] = df['JOB_TITLE'].astype(str)
 
 app = DjangoDash('h1b_salary', external_stylesheets=external_stylesheets)
 
