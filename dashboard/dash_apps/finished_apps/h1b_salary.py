@@ -8,7 +8,7 @@ from dash.dependencies import Input, Output
 from django_plotly_dash import DjangoDash
 import dash_table
 
-external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
+external_stylesheets = ["https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap-grid.min.css"]
 
 
 # format the starting dataset
@@ -85,15 +85,49 @@ x = pd.DataFrame(df['SOC_NAME'].value_counts())
 x['SOC_NAME'] = x.index
 sorted_jobs = x['SOC_NAME'].tolist()
 
+# get count of all states as a list
+x = pd.DataFrame(df['WORKSITE_STATE'].value_counts())
+x['WORKSITE_STATE'] = x.index
+sorted_states = x['WORKSITE_STATE'].tolist()
+
+# get counts of all jobs by companies as a table
+#job_detail_data = pd.DataFrame(
+#    pd.pivot_table(
+#        job_df, index=['SOC_NAME'], columns=['EMPLOYER_NAME'],
+#        values=['JOB_TITLE'], aggfunc=len
+#    ).to_records()
+#)
+#job_detail_data.columns = job_detail_data.columns.str.replace(
+#    "JOB_TITLE", "").str.replace('[^\w\s]', '').str.strip()
+
+
 app = DjangoDash('h1b_salary', external_stylesheets=external_stylesheets)
+
 
 app.layout = html.Div([
 
     dcc.Markdown('''
 
-    Job Titles and Salaries of Publicly Available H1B Records.
+    # Analysis of Publicly Available H1B Records
 
-    Select any combination of companies and jobs to compare H1B jobs certified in 2019:
+    #### Select any combination of companies and jobs to compare H1B jobs certified in 2019:
+    '''),
+
+    dcc.Dropdown(
+        id='job_selection',
+        options=[
+            {'label': c, 'value': c}
+            for c in sorted_jobs
+
+        ],
+        value=['SOFTWARE DEVELOPERS, APPLICATIONS',],
+        multi=True,
+        clearable=False,
+    ),
+
+    dcc.Markdown('''
+    
+    #### Select companies to compare records:
     '''),
 
     dcc.Dropdown(
@@ -107,18 +141,22 @@ app.layout = html.Div([
         multi=True,
         clearable=False,
     ),
+    dcc.Markdown('''
+    #### Select states to filter:
+    '''),
 
     dcc.Dropdown(
-        id='job_selection',
+        id='state_selection',
         options=[
             {'label': c, 'value': c}
-            for c in sorted_jobs
+            for c in sorted_states
 
         ],
-        value=['SOFTWARE DEVELOPERS, APPLICATIONS', ],
+        value=['CA', 'WA', 'NY', 'NJ', 'TX', ],
         multi=True,
         clearable=False,
     ),
+
 
     dcc.Markdown('''
     Total size of available data
@@ -128,34 +166,85 @@ app.layout = html.Div([
     html.Div([
         html.Div([
             dcc.Graph(id='company_count_bar'),
-        ], className="six columns"),
+        ],
+            style={'width': '38%', 'display': 'inline-block'}),
 
         html.Div([
             dcc.Graph(id='job_count_bar'),
-        ], className="six columns"),
-    ], className="row"),
+        ],
+            style={'width': '48%', 'display': 'inline-block', 'align': 'right'})
+    ],
+        ),
 
     dcc.Markdown('''
         Exploratory data by job: salary, job types, and locations
     '''),
     # data exploration charts
     dcc.Graph(id='salary_bars'),
-    dcc.Graph(id='job_bar'),
-    dcc.Graph(id='state_bar'),
 
+    # todo: salary descriptive bar chart
+    dcc.Graph(id='salary_bar_descriptive'),
+    dcc.Graph(id='state_bar'),
+    dcc.Graph(id='all_job_count_bars'),
+    dcc.Graph(id='all_company_count_bars',
+              style={
+                  'height': 800,
+              }),
 
 ], className='container')
+
+
+
+@app.callback(
+    Output('all_job_count_bars', 'figure'),
+    [Input('company_selection', 'value'),
+     Input('state_selection', 'value')]
+)
+def update_all_job_count_bars(companies, states):
+    target_df = df.loc[df['EMPLOYER_NAME'].isin(companies)]
+    target_df = target_df.loc[target_df['WORKSITE_STATE'].isin(states)]
+
+    job_counts = pd.DataFrame(target_df['SOC_NAME'].value_counts())
+    job_counts = job_counts.rename(columns={'SOC_NAME': 'count'})
+    job_counts['SOC_NAME'] = job_counts.index
+    job_counts = job_counts.reset_index(drop=True)
+
+    trace = go.Bar(
+        y=job_counts['SOC_NAME'],
+        x=job_counts['count'],
+        orientation='h',
+        text=job_counts['count'],
+        textposition='auto',
+
+    )
+
+    layout = go.Layout(
+        title=f"Total Results by Company by Job",
+        xaxis={'title': 'count of jobs'},
+        yaxis={
+            'title': '',
+            'automargin': True,
+            'autorange': 'reversed',
+        },
+    )
+
+    figure = {'data': [trace], 'layout': layout}
+
+    return figure
+
 
 
 @app.callback(
     Output('salary_bars', 'figure'),
     [Input('company_selection', 'value'),
      Input('job_selection', 'value'),
+     Input('state_selection', 'value'),
      ]
 )
-def update_salary_bars(companies, jobs):
+def update_salary_bars(companies, jobs, states):
     dff = df.loc[df['EMPLOYER_NAME'].isin(companies)]
-    job_df = dff.loc[dff['SOC_NAME'].isin(jobs)]
+    states_df = dff.loc[dff['WORKSITE_STATE'].isin(states)]
+    job_df = states_df.loc[states_df['SOC_NAME'].isin(jobs)]
 
     all_traces = []
     for company in companies:
@@ -177,46 +266,41 @@ def update_salary_bars(companies, jobs):
 
     return figure
 
-
 @app.callback(
-    Output('job_bar', 'figure'),
+    Output('salary_bar_descriptive', 'figure'),
     [Input('company_selection', 'value'),
-     Input('job_selection', 'value')]
+     Input('job_selection', 'value'),
+     Input('state_selection', 'value'),
+     ]
 )
-def update_job_bars(companies, jobs):
-
+def update_salary_bar_descriptive(companies, jobs, states):
+    """calculate 25th, 50th, and 75th percentile annual per each company"""
     dff = df.loc[df['EMPLOYER_NAME'].isin(companies)]
-    job_df = dff.loc[dff['SOC_NAME'].isin(jobs)]
+    states_df = dff.loc[dff['WORKSITE_STATE'].isin(states)]
+    job_df = states_df.loc[states_df['SOC_NAME'].isin(jobs)]
 
     all_traces = []
-    for company in companies:
-        company_df = job_df.loc[job_df['EMPLOYER_NAME'] == company]
+    salaries_pivoted = pd.DataFrame()
 
-        job_counts = pd.DataFrame(company_df['SOC_NAME'].value_counts())
-        job_counts['EMPLOYER_NAME'] = company
-        job_counts = job_counts.rename(columns={'SOC_NAME': 'count'})
-        job_counts['SOC_NAME'] = job_counts.index
-        job_counts = job_counts.reset_index(drop=True)
+    company_pivot = job_df.groupby('EMPLOYER_NAME')['annual_pay'].describe()
+    company_pivot['EMPLOYER_NAME'] = company_pivot.index
+    display_columns = ['25%', '50%', '75%']
+    for i in display_columns:
 
-
-        company = go.Bar(
-            y=job_counts['count'],
-            x=job_counts['SOC_NAME'],
-            name=company,
-            text=job_counts['count'],
-            textposition='auto',
-
-        )
-        all_traces.append(company)
+        trace = go.Bar(
+                y=company_pivot[i],
+                x=company_pivot['EMPLOYER_NAME'],
+                text=company_pivot['50%'],
+            )
+        all_traces.append(trace)
 
     layout = go.Layout(
-        title=f"Count of Jobs by Company",
-        xaxis={'title': 'SOC NAME'},
-        yaxis={'title': 'count'},
-        bargap=0.1,
-                       )
+        title=f"Salary Distribution by Company",
+        xaxis={'title': 'employer'},
+        yaxis={'title': 'annual pay', },
+    )
 
-    figure = {'data': all_traces, 'layout': layout}
+    figure = {'data': [all_traces], 'layout': layout}
 
     return figure
 
@@ -224,25 +308,29 @@ def update_job_bars(companies, jobs):
 @app.callback(
     Output('state_bar', 'figure'),
     [Input('company_selection', 'value'),
-     Input('job_selection', 'value')]
+     Input('job_selection', 'value'),
+     Input('state_selection', 'value')]
 )
-def update_location_bars(companies, jobs):
+def update_location_bars(companies, jobs, states):
     dff = df.loc[df['EMPLOYER_NAME'].isin(companies)]
-    job_df = dff.loc[dff['SOC_NAME'].isin(jobs)]
+    states_df = dff.loc[dff['WORKSITE_STATE'].isin(states)]
+    job_df = states_df.loc[states_df['SOC_NAME'].isin(jobs)]
 
     all_traces = []
     for company in companies:
         company_df = job_df.loc[job_df['EMPLOYER_NAME'] == company]
-        state_counts = pd.DataFrame(company_df['EMPLOYER_STATE'].value_counts())
+        state_counts = pd.DataFrame(company_df['WORKSITE_STATE'].value_counts())
         state_counts['EMPLOYER_NAME'] = company
-        state_counts = state_counts.rename(columns={'EMPLOYER_STATE': 'count'})
-        state_counts['EMPLOYER_STATE'] = state_counts.index
-        state_counts['pct_total'] = round(state_counts['count'] / state_counts['count'].sum(),3)
+        state_counts = state_counts.rename(columns={'WORKSITE_STATE': 'count'})
+        state_counts['WORKSITE_STATE'] = state_counts.index
+        state_counts['pct_total'] = round(state_counts['count'] / state_counts['count'].sum(), 2)
+        # remove <1% in state counts
+        state_counts = state_counts.loc[state_counts['pct_total'] >= .01]
         state_counts = state_counts.reset_index(drop=True)
 
         company = go.Bar(
             y=state_counts['pct_total'],
-            x=state_counts['EMPLOYER_STATE'],
+            x=state_counts['WORKSITE_STATE'],
             name=company,
             text=state_counts['pct_total'],
 
@@ -250,7 +338,11 @@ def update_location_bars(companies, jobs):
         all_traces.append(company)
 
     layout = go.Layout(title=f"All Job Locations by State", xaxis={'title': 'US State'},
-                       yaxis={'title': 'Percent of All Jobs per Company', },
+                       yaxis={
+                           'title': 'Percent of All Jobs per Company',
+                           'tickformat': ",.0%",
+                           'hoverformat': ",.0%",
+                        },
                        bargap=0.1,
                        )
 
@@ -261,12 +353,14 @@ def update_location_bars(companies, jobs):
 @app.callback(
     Output('company_count_bar', 'figure'),
     [Input('company_selection', 'value'),
-     Input('job_selection', 'value')]
+     Input('job_selection', 'value'),
+     Input('state_selection', 'value')]
 )
-def update_company_count_bar(companies, jobs):
+def update_company_count_bar(companies, jobs, states):
     """"""
     dff = df.loc[df['EMPLOYER_NAME'].isin(companies)]
-    target_df = dff.loc[dff['SOC_NAME'].isin(jobs)]
+    states_df = dff.loc[dff['WORKSITE_STATE'].isin(states)]
+    target_df = states_df.loc[states_df['SOC_NAME'].isin(jobs)]
 
     company_counts = pd.DataFrame(target_df['EMPLOYER_NAME'].value_counts())
     company_counts['Company'] = company_counts.index
@@ -287,6 +381,7 @@ def update_company_count_bar(companies, jobs):
         yaxis={
             'title': '',
             'automargin': True,
+            'autorange': 'reversed',
         },
     )
 
@@ -298,13 +393,15 @@ def update_company_count_bar(companies, jobs):
 @app.callback(
     Output('job_count_bar', 'figure'),
     [Input('company_selection', 'value'),
-     Input('job_selection', 'value')]
+     Input('job_selection', 'value'),
+     Input('state_selection', 'value')]
 )
 
-def update_job_count_bar(companies, jobs):
+def update_job_count_bar(companies, jobs, states):
     """"""
     dff = df.loc[df['EMPLOYER_NAME'].isin(companies)]
-    target_df = dff.loc[dff['SOC_NAME'].isin(jobs)]
+    states_df = dff.loc[dff['WORKSITE_STATE'].isin(states)]
+    target_df = states_df.loc[states_df['SOC_NAME'].isin(jobs)]
 
     job_counts = pd.DataFrame(target_df['SOC_NAME'].value_counts())
     job_counts = job_counts.rename(columns={'SOC_NAME': 'count'})
@@ -326,6 +423,49 @@ def update_job_count_bar(companies, jobs):
         yaxis={
             'title': '',
             'automargin': True,
+        },
+    )
+
+    figure = {'data': [trace], 'layout': layout}
+
+    return figure
+
+
+@app.callback(
+    Output('all_company_count_bars', 'figure'),
+    [Input('job_selection', 'value'),
+     Input('state_selection', 'value')]
+)
+def update_all_company_count_bars(jobs, states):
+    """updates chart that shows all companies with results for
+    the target SOC_NAME (job family)"""
+    states_df = df.loc[df['WORKSITE_STATE'].isin(states)]
+    target_df = states_df.loc[states_df['SOC_NAME'].isin(jobs)]
+
+    company_job_counts = pd.DataFrame(target_df['EMPLOYER_NAME'].value_counts())
+    company_job_counts = company_job_counts.rename(columns={'EMPLOYER_NAME': 'count'})
+    company_job_counts['EMPLOYER_NAME'] = company_job_counts.index
+    company_job_counts = company_job_counts.reset_index(drop=True)
+
+    # only show the first n values
+    company_job_counts = company_job_counts.head(25)
+
+    trace = go.Bar(
+        y=company_job_counts['EMPLOYER_NAME'],
+        x=company_job_counts['count'],
+        orientation='h',
+        text=company_job_counts['count'],
+        textposition='auto',
+
+    )
+
+    layout = go.Layout(
+        title=f"Total Results by Job by Company",
+        xaxis={'title': 'count of jobs'},
+        yaxis={
+            'title': '',
+            'automargin': True,
+            'autorange': 'reversed',
         },
     )
 
