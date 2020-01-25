@@ -137,7 +137,7 @@ app.layout = html.Div([
             for c in sorted_companies
 
         ],
-        value=['GOOGLE', 'AMAZON Services', 'MICROSOFT', ],
+        value=['GOOGLE', 'MICROSOFT', 'AMAZON SERVICES',],
         multi=True,
         clearable=False,
     ),
@@ -280,27 +280,50 @@ def update_salary_bar_descriptive(companies, jobs, states):
     job_df = states_df.loc[states_df['SOC_NAME'].isin(jobs)]
 
     all_traces = []
-    salaries_pivoted = pd.DataFrame()
+    for company in companies:
+        company_df = job_df.loc[job_df['EMPLOYER_NAME'] == company]
 
-    company_pivot = job_df.groupby('EMPLOYER_NAME')['annual_pay'].describe()
-    company_pivot['EMPLOYER_NAME'] = company_pivot.index
-    display_columns = ['25%', '50%', '75%']
-    for i in display_columns:
+        # create data frame format needed for chart
+        company_percentiles = company_df.groupby('EMPLOYER_NAME')['annual_pay'].describe().T
+        company_percentiles['EMPLOYER_NAME'] = company
+        company_percentiles = company_percentiles.rename(
+            columns={
+                company : 'value'
+            }
+        )
+        company_percentiles['metric'] = company_percentiles.index
+        company_percentiles = company_percentiles.reset_index(drop=True)
 
-        trace = go.Bar(
-                y=company_pivot[i],
-                x=company_pivot['EMPLOYER_NAME'],
-                text=company_pivot['50%'],
-            )
-        all_traces.append(trace)
+        # select only needed percentiles
+        pct_df = company_percentiles.loc[company_percentiles['metric'].isin(
+            ['25%', '50%', '75%', ]
+        )].reset_index(drop=True)
+        pct_df['metric'] = pct_df['metric'].map({
+            '25%': '25th percentile',
+            '50%': '50th percentile',
+            '75%': '75th percentile',
+        })
+
+        company_trace = go.Bar(
+            y=pct_df['value'],
+            x=pct_df['metric'],
+            name=str(company),
+            text=pct_df['value'],
+            textposition='auto',
+
+        )
+        all_traces.append(company_trace)
 
     layout = go.Layout(
         title=f"Salary Distribution by Company",
         xaxis={'title': 'employer'},
-        yaxis={'title': 'annual pay', },
+        yaxis={
+            'title': 'annual pay',
+            'automargin': True,
+        },
     )
 
-    figure = {'data': [all_traces], 'layout': layout}
+    figure = {'data': all_traces, 'layout': layout}
 
     return figure
 
@@ -337,7 +360,8 @@ def update_location_bars(companies, jobs, states):
         )
         all_traces.append(company)
 
-    layout = go.Layout(title=f"All Job Locations by State", xaxis={'title': 'US State'},
+    layout = go.Layout(title=f"All Job Locations by State",
+                       xaxis={'title': 'US State'},
                        yaxis={
                            'title': 'Percent of All Jobs per Company',
                            'tickformat': ",.0%",
