@@ -106,11 +106,31 @@ app = DjangoDash('h1b_salary', external_stylesheets=external_stylesheets)
 
 app.layout = html.Div([
 
+    html.Div([html.H1("Salary Analysis of H1B Records")], style={'textAlign': "center"}),
+    html.Div([html.H5(
+        "H1B disclosure data includes salary, employer, job type, job title, "
+        "and work location for each individual. This data is made publicly available "
+        "from the Office of Foreign Labor Certification under the "
+        "US Department of Labor."
+    )], style={'textAlign': "center"}),
+
+    html.Div([html.H5(
+        "This data can be used to understand general compensation trends and practices "
+        "across different companies, jobs, US states, and more."
+
+    )], style={'textAlign': "center"}),
+
+    html.Div([html.H5(
+        dcc.Markdown('''View the source data here: 
+    [H1B disclosure data source from the OFLC](
+    https://www.foreignlaborcert.doleta.gov/performancedata.cfm#dis)
+    '''),
+    )], style={'textAlign': "center"}),
+
     dcc.Markdown('''
-
-    # Analysis of Publicly Available H1B Records
-
-    #### Select any combination of companies and jobs to compare H1B jobs certified in 2019:
+    #### First select the type of occupation to view - this dashboard defaults to 
+    "Software Developers, Applications" which represents all software development,
+    and engineering jobs, as grouped by the Department of Labor's SOC job codes.
     '''),
 
     dcc.Dropdown(
@@ -126,36 +146,43 @@ app.layout = html.Div([
     ),
 
     dcc.Markdown('''
-    
-    #### Select companies to compare records:
+    #### Next, select the combinations of companies you'd like to compare, and select
+    the states that you've like to filter the results to show.
     '''),
 
-    dcc.Dropdown(
-        id='company_selection',
-        options=[
-            {'label': c, 'value': c}
-            for c in sorted_companies
+    # side by side drop downs for company and state
+    html.Div([
+        html.Div([
+            dcc.Dropdown(
+                id='company_selection',
+                options=[
+                    {'label': c, 'value': c}
+                    for c in sorted_companies
 
+                ],
+                value=['GOOGLE', 'MICROSOFT', 'AMAZON SERVICES', ],
+                multi=True,
+                clearable=False,
+            ),
         ],
-        value=['GOOGLE', 'MICROSOFT', 'AMAZON SERVICES',],
-        multi=True,
-        clearable=False,
-    ),
-    dcc.Markdown('''
-    #### Select states to filter:
-    '''),
+            style={'width': '50%', 'display': 'inline-block'}),
 
-    dcc.Dropdown(
-        id='state_selection',
-        options=[
-            {'label': c, 'value': c}
-            for c in sorted_states
+        html.Div([
+            dcc.Dropdown(
+                id='state_selection',
+                options=[
+                    {'label': c, 'value': c}
+                    for c in sorted_states
 
+                ],
+                value=['CA', 'WA', 'NY', 'NJ', 'TX', ],
+                multi=True,
+                clearable=False,
+            ),
         ],
-        value=['CA', 'WA', 'NY', 'NJ', 'TX', ],
-        multi=True,
-        clearable=False,
-    ),
+            style={'width': '50%', 'display': 'inline-block', 'align': 'right'})
+    ],
+        ),
 
 
     dcc.Markdown('''
@@ -167,7 +194,7 @@ app.layout = html.Div([
         html.Div([
             dcc.Graph(id='company_count_bar'),
         ],
-            style={'width': '38%', 'display': 'inline-block'}),
+            style={'width': '38%', 'display': 'inline-block', 'align': 'left'}),
 
         html.Div([
             dcc.Graph(id='job_count_bar'),
@@ -182,14 +209,18 @@ app.layout = html.Div([
     # data exploration charts
     dcc.Graph(id='salary_bars'),
 
-    # todo: salary descriptive bar chart
+    # salary descriptive bar chart
     dcc.Graph(id='salary_bar_descriptive'),
+    # shows the distribution across states
     dcc.Graph(id='state_bar'),
-    dcc.Graph(id='all_job_count_bars'),
+    # shows all companies available for the jobs in the dataset
     dcc.Graph(id='all_company_count_bars',
               style={
                   'height': 800,
               }),
+    # shows all the types of jobs available in the data
+    dcc.Graph(id='all_job_count_bars'),
+
 
 ], className='container')
 
@@ -356,6 +387,7 @@ def update_location_bars(companies, jobs, states):
             x=state_counts['WORKSITE_STATE'],
             name=company,
             text=state_counts['pct_total'],
+            textposition='auto',
 
         )
         all_traces.append(company)
@@ -447,6 +479,7 @@ def update_job_count_bar(companies, jobs, states):
         yaxis={
             'title': '',
             'automargin': True,
+            'autorange': 'reversed',
         },
     )
 
