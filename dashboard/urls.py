@@ -7,4 +7,5 @@ urlpatterns = [
     path('about/', views.about, name='dashboards_about'),
     path('salaries/', views.h1b_salary_dashboard, name='h1b_salary_dashboard'),
     path('django_plotly_dash/', include('django_plotly_dash.urls')),
+    
 ]
