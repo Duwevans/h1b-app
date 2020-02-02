@@ -14,7 +14,7 @@ external_stylesheets = ["https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/
 # format the starting dataset
 def get_dataset():
     """"""
-    url = 'https://media.githubusercontent.com/media/Duwevans/h1b-app/master/data/h1b_disclosure_data.csv'
+    url = 'https://media.githubusercontent.com/media/Duwevans/h1b-app/master/data/h1b_disclosure_data_short.csv'
 
     #df0 = pd.read_csv(url, low_memory=False)
     df0 = pd.read_csv('/Users/duncanevans/downloads/h1b_disclosure_data_short.csv', low_memory=False)
