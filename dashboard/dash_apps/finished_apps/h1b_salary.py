@@ -16,8 +16,8 @@ def get_dataset():
     """"""
     url = 'https://media.githubusercontent.com/media/Duwevans/h1b-app/master/data/h1b_disclosure_data_short.csv'
 
-    #df0 = pd.read_csv(url, low_memory=False)
-    df0 = pd.read_csv('/Users/duncanevans/downloads/h1b_disclosure_data_short.csv', low_memory=False)
+    df0 = pd.read_csv(url, low_memory=False)
+    #df0 = pd.read_csv('/Users/duncanevans/downloads/h1b_disclosure_data_short.csv', low_memory=False)
 
     # shrink to only needed columns
     df1 = df0[[
@@ -31,7 +31,7 @@ def get_dataset():
     ]]
 
     # save shortened dataset to csv
-    #  df1.to_csv('h1b_disclosure_data_short.csv', index=False)
+    #  df_tech.to_csv('h1b_disclosure_data_short.csv', index=False)
 
 
     df = df0.copy()
