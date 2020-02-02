@@ -17,7 +17,22 @@ def get_dataset():
     url = 'https://media.githubusercontent.com/media/Duwevans/h1b-app/master/data/h1b_disclosure_data.csv'
 
     #df0 = pd.read_csv(url, low_memory=False)
-    df0 = pd.read_csv('/Users/duncanevans/downloads/h1b_disclosure_data.csv', low_memory=False)
+    df0 = pd.read_csv('/Users/duncanevans/downloads/h1b_disclosure_data_short.csv', low_memory=False)
+
+    # shrink to only needed columns
+    df1 = df0[[
+        'EMPLOYER_NAME',
+        'SOC_CODE',
+        'SOC_NAME',
+        'WAGE_UNIT_OF_PAY',
+        'WAGE_RATE_OF_PAY_FROM',
+        'JOB_TITLE',
+        'WORKSITE_STATE',
+    ]]
+
+    # save shortened dataset to csv
+    #  df1.to_csv('h1b_disclosure_data_short.csv', index=False)
+
 
     df = df0.copy()
     #import os
@@ -90,16 +105,6 @@ x = pd.DataFrame(df['WORKSITE_STATE'].value_counts())
 x['WORKSITE_STATE'] = x.index
 sorted_states = x['WORKSITE_STATE'].tolist()
 
-# get counts of all jobs by companies as a table
-#job_detail_data = pd.DataFrame(
-#    pd.pivot_table(
-#        job_df, index=['SOC_NAME'], columns=['EMPLOYER_NAME'],
-#        values=['JOB_TITLE'], aggfunc=len
-#    ).to_records()
-#)
-#job_detail_data.columns = job_detail_data.columns.str.replace(
-#    "JOB_TITLE", "").str.replace('[^\w\s]', '').str.strip()
-
 
 app = DjangoDash('h1b_salary', external_stylesheets=external_stylesheets)
 
@@ -128,7 +133,8 @@ app.layout = html.Div([
     )], style={'textAlign': "center"}),
 
     dcc.Markdown('''
-    #### First select the type of occupation to view - this dashboard defaults to 
+    
+    First, select the type of occupation to view - this dashboard defaults to 
     "Software Developers, Applications" which represents all software development,
     and engineering jobs, as grouped by the Department of Labor's SOC job codes.
     '''),
@@ -146,7 +152,7 @@ app.layout = html.Div([
     ),
 
     dcc.Markdown('''
-    #### Next, select the combinations of companies you'd like to compare, and select
+    Next, select the combinations of companies you'd like to compare, and select
     the states that you've like to filter the results to show.
     '''),
 
@@ -185,10 +191,6 @@ app.layout = html.Div([
         ),
 
 
-    dcc.Markdown('''
-    Total size of available data
-    '''),
-
     # side by side descriptive charts
     html.Div([
         html.Div([
@@ -204,8 +206,16 @@ app.layout = html.Div([
         ),
 
     dcc.Markdown('''
-        Exploratory data by job: salary, job types, and locations
+    The following chart shows the distribution of salaries at each company - this 
+    can give us an idea of what the range of salaries are. If there are any "spikes" 
+    in this chart, they are probably a set level for a particular job in 
+    the company. 
     '''),
+    dcc.Markdown('''
+    If this chart is difficult to read, try clicking on company names in the 
+    legend of this chart to show/hide each company and view one or two at a time.
+    '''),
+
     # data exploration charts
     dcc.Graph(id='salary_bars'),
 
@@ -214,6 +224,11 @@ app.layout = html.Div([
     # shows the distribution across states
     dcc.Graph(id='state_bar'),
     # shows all companies available for the jobs in the dataset
+    dcc.Markdown('''
+    The last two charts in this dashboard display the total data available for 
+    each company, and each job. Selecting companies/jobs that have many results
+    on this list will make for the most informative charts displayed above.
+    '''),
     dcc.Graph(id='all_company_count_bars',
               style={
                   'height': 800,
@@ -250,7 +265,7 @@ def update_all_job_count_bars(companies, states):
     )
 
     layout = go.Layout(
-        title=f"Total Results by Company by Job",
+        title=f"Count of All Jobs Available in Data",
         xaxis={'title': 'count of jobs'},
         yaxis={
             'title': '',
@@ -287,7 +302,7 @@ def update_salary_bars(companies, jobs, states):
         all_traces.append(company)
 
     layout = go.Layout(
-        title=f"Salary Distribution by Company",
+        title=f"Distribution of Salaries by Each Company",
         xaxis={'title': 'Annual Pay (USD)'},
         yaxis={'title': 'count', },
         bargap=0.1,
@@ -346,7 +361,7 @@ def update_salary_bar_descriptive(companies, jobs, states):
         all_traces.append(company_trace)
 
     layout = go.Layout(
-        title=f"Salary Distribution by Company",
+        title=f"Percentiles of Salaries by Each Company",
         xaxis={'title': 'employer'},
         yaxis={
             'title': 'annual pay',
@@ -366,6 +381,7 @@ def update_salary_bar_descriptive(companies, jobs, states):
      Input('state_selection', 'value')]
 )
 def update_location_bars(companies, jobs, states):
+    """updates the chart displaying the percentage of jobs in each state"""
     dff = df.loc[df['EMPLOYER_NAME'].isin(companies)]
     states_df = dff.loc[dff['WORKSITE_STATE'].isin(states)]
     job_df = states_df.loc[states_df['SOC_NAME'].isin(jobs)]
@@ -392,7 +408,7 @@ def update_location_bars(companies, jobs, states):
         )
         all_traces.append(company)
 
-    layout = go.Layout(title=f"All Job Locations by State",
+    layout = go.Layout(title=f"Percent of All Job Locations by State",
                        xaxis={'title': 'US State'},
                        yaxis={
                            'title': 'Percent of All Jobs per Company',
@@ -432,7 +448,7 @@ def update_company_count_bar(companies, jobs, states):
     )
 
     layout = go.Layout(
-        title=f"Total Results by Company",
+        title=f"Count of Jobs per Each Company",
         xaxis={'title': 'count of jobs'},
         yaxis={
             'title': '',
@@ -474,7 +490,7 @@ def update_job_count_bar(companies, jobs, states):
     )
 
     layout = go.Layout(
-        title=f"Total Results by Job",
+        title=f"Count of Total Jobs",
         xaxis={'title': 'count of jobs'},
         yaxis={
             'title': '',
@@ -517,7 +533,7 @@ def update_all_company_count_bars(jobs, states):
     )
 
     layout = go.Layout(
-        title=f"Total Results by Job by Company",
+        title=f"All Jobs for All Companies Available in Data",
         xaxis={'title': 'count of jobs'},
         yaxis={
             'title': '',
